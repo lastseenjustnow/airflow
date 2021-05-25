@@ -1,0 +1,65 @@
+# https://github.com/puckel/docker-airflow/blob/master/docker-compose-LocalExecutor.yml
+version: '3.7'
+services:
+    postgres:
+        image: postgres:9.6
+        container_name: pg_air
+        environment:
+            - POSTGRES_USER=airflow
+            - POSTGRES_PASSWORD=airflow
+            - POSTGRES_DB=airflow
+            - FERNET_KEY=Lay0xQnlAFeJTQzrsh4cTMeRjCGuiYu9-blKehQCKdY=
+        logging:
+            options:
+                max-size: 10m
+                max-file: "3"
+        networks:
+            - airflow
+    webserver:
+        build: .
+        container_name: airflow
+        restart: always
+        depends_on:
+            - postgres
+        environment:
+            - LOAD_EX=n
+            - EXECUTOR=Local
+            - FERNET_KEY=Lay0xQnlAFeJTQzrsh4cTMeRjCGuiYu9-blKehQCKdY=
+        env_file:
+          - conn.env
+        logging:
+            options:
+                max-size: 10m
+                max-file: "3"
+        volumes:
+            - ./dags:/usr/local/airflow/dags
+            - ./keys:/home/airflow/keys
+            - ./data:/usr/local/airflow/data
+            - ./plugins:/usr/local/airflow/plugins
+            - ./requirements.txt:/requirements.txt
+        networks:
+            - airflow
+        ports:
+            - "8080:8080"
+        command: webserver
+        healthcheck:
+            test: ["CMD-SHELL", "[ -f /usr/local/airflow/airflow-webserver.pid ]"]
+            interval: 30s
+            timeout: 30s
+            retries: 3
+
+    scheduler_healthcheck:
+        build:
+            context: ./
+            dockerfile: Dockerfile_schedhealth.dockerfile
+        container_name: scheduler_healthcheck
+        restart: always
+        depends_on:
+            - webserver
+        volumes:
+            - /usr/local/bin/docker:/usr/local/bin/docker
+            - /var/run/docker.sock:/var/run/docker.sock
+        command: ./scheduler_healthcheck.sh
+networks:
+    airflow:
+        name: airflow
